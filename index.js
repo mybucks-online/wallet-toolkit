@@ -1,5 +1,11 @@
-import { generateHash, getEvmPrivateKey, getEvmWalletAddress, generateToken } from '@mybucks.online/core';
-import { generatePassphrase, generatePIN } from './lib.js';
+import {
+  generateHash,
+  getEvmPrivateKey,
+  getEvmWalletAddress,
+  getTronWalletAddress,
+  generateToken,
+} from "@mybucks.online/core";
+import { generatePassphrase, generatePIN } from "./lib.js";
 
 async function main() {
   const count = parseInt(process.argv[2]) || 1;
@@ -10,9 +16,12 @@ async function main() {
     const pin = generatePIN();
     const hash = await generateHash(passphrase, pin);
     const privateKey = getEvmPrivateKey(hash);
-    const address = getEvmWalletAddress(hash);
+    const address =
+      network === "tron"
+        ? getTronWalletAddress(hash)
+        : getEvmWalletAddress(hash);
     const walletToken = generateToken(passphrase, pin, network);
-    const transferLink = 'https://app.mybucks.online/#wallet=' + walletToken;
+    const transferLink = "https://app.mybucks.online/#wallet=" + walletToken;
 
     console.log(`${passphrase},${pin},${address},${transferLink}`);
   }

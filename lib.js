@@ -1,9 +1,9 @@
-import { randomInt } from 'crypto';
+import { randomInt } from "crypto";
 
-const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const LOWER = 'abcdefghijklmnopqrstuvwxyz';
-const DIGITS = '0123456789';
-const SYMBOLS = '!@#$%^&*_+=?';
+const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const LOWER = "abcdefghijklmnopqrstuvwxyz";
+const DIGITS = "0123456789";
+const SYMBOLS = "!@#$%^&*_+=?";
 const ALPHANUM = UPPER + LOWER + DIGITS;
 const ALL = ALPHANUM + SYMBOLS;
 
@@ -12,14 +12,16 @@ function randomChar(charset) {
 }
 
 function generateSegment(length, charset) {
-  return Array.from({ length }, () => randomChar(charset)).join('');
+  return Array.from({ length }, () => randomChar(charset)).join("");
 }
 
 // Format: xxxx-xxxx-xxxx-xxxx (UUID-inspired)
 // Guarantees: uppercase, lowercase, digit, and symbol present
 function generatePassphrase(blockLength = 4, numBlocks = 4) {
-  const segments = Array.from({ length: numBlocks }, () => generateSegment(blockLength, ALL));
-  const passphrase = segments.join('-');
+  const segments = Array.from({ length: numBlocks }, () =>
+    generateSegment(blockLength, ALL),
+  );
+  const passphrase = segments.join("-");
 
   const hasUpper = /[A-Z]/.test(passphrase);
   const hasLower = /[a-z]/.test(passphrase);
