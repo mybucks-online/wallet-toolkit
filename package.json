@@ -2,8 +2,9 @@
   "name": "@mybucks.online/generate-wallet",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "start": "node index.js",
+    "generate": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "koko37",
