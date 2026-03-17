@@ -9,8 +9,8 @@
   },
   "author": "koko37",
   "license": "ISC",
-  "description": "Generate a passphrase and PIN for the temporary wallet on mybucks.online.",
+  "description": "Generate a passphrase and PIN for temporary wallets on mybucks.online.",
   "dependencies": {
-    "@mybucks.online/core": "^1.0.12"
+    "@mybucks.online/core": "^2.2.1"
   }
 }
