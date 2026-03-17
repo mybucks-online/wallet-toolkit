@@ -5,21 +5,20 @@ Generates disposable crypto wallets for [mybucks.online](https://mybucks.online)
 Each wallet is output as a CSV line:
 
 ```
-passphrase,pin,address,transferLink
+pin,address,network,walletToken,transferLink
 ```
+
+The **passphrase is not included in the CSV** because it contains fully random
+characters (including commas and quotes) that frequently break CSV parsing in
+tools like Google Sheets. The passphrase can always be recovered later from
+the `walletToken`.
 
 ### Example output
 
-```
-_kW7PO-=SVxPv-1x2O*8-1s=2xR,
-RAaxq6,
-0x1Ec17EbD74e80E9afB0b5CB7291d5a9c51b0b1F8,
-https://app.mybucks.online/#wallet=ncE9iqX2tXN1BPLT1TVnhQdi0xeDJPKjgtMXM9MnhSAlJBYXhxNgJldGhlcmV1bQ==CpGUYu
-
-L#Qr2x-KsYlqt-sHfbK#-QQtw$B,
-kssUmm,
-0x263a79FC3EeF9D256a60AAB7f0E5954F6de0916F,
-https://app.mybucks.online/#wallet=-e42AYTCNRcjJ4LUtzWWxxdC1zSGZiSyMtUVF0dyRCAmtzc1VtbQJldGhlcmV1bQ==XbzB2U
+```csv
+pin,address,network,walletToken,transferLink
+RAaxq6,0x1Ec17EbD74e80E9afB0b5CB7291d5a9c51b0b1F8,polygon,ncE9iqX2tXN1BPLT1TVnhQdi0xeDJPKjgtMXM9MnhSAlJBYXhxNgJldGhlcmV1bQ==CpGUYu,https://app.mybucks.online/#wallet=ncE9iqX2tXN1BPLT1TVnhQdi0xeDJPKjgtMXM9MnhSAlJBYXhxNgJldGhlcmV1bQ==CpGUYu
+kssUmm,0x263a79FC3EeF9D256a60AAB7f0E5954F6de0916F,polygon,-e42AYTCNRcjJ4LUtzWWxxdC1zSGZiSyMtUVF0dyRCAmtzc1VtbQJldGhlcmV1bQ==XbzB2U,https://app.mybucks.online/#wallet=-e42AYTCNRcjJ4LUtzWWxxdC1zSGZiSyMtUVF0dyRCAmtzc1VtbQJldGhlcmV1bQ==XbzB2U
 ```
 
 ## Install
