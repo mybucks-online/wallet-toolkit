@@ -31,8 +31,18 @@ function getWalletTokenFromTransferLink(transferLink) {
   return walletToken;
 }
 
+// main()
+// - Accepts a transfer link argument and trims surrounding whitespace.
+// - Extracts wallet token from the URL hash (#wallet=...).
+// - Decodes token fields (passphrase, pin, network, legacy) via parseToken.
+// - Re-generates the wallet hash and derives the EVM wallet address.
+// - Prints decoded values and derived outputs for verification/debugging.
 async function main() {
-  const transferLink = process.argv[2];
+  const transferLinkArg = process.argv[2];
+  if (!transferLinkArg) {
+    printUsageAndExit();
+  }
+  const transferLink = transferLinkArg.trim();
   if (!transferLink) {
     printUsageAndExit();
   }
