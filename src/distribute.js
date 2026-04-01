@@ -1,13 +1,12 @@
+import "dotenv/config";
 import { ethers } from "ethers";
 import { createRequire } from "module";
+import * as readline from "node:readline/promises";
 import { generateHash, getEvmPrivateKey } from "@mybucks.online/core";
 import { EVM_NETWORKS, USDT_DECIMALS } from "./conf/evm.js";
 
 const require = createRequire(import.meta.url);
 const erc20 = require("./conf/erc20.json");
-
-const GAS_TOPUP_ETH = "0.002";
-const USDT_AMOUNT = "1";
 
 const USDT_CONTRACT_BY_CHAIN_ID = Object.freeze({
   1: "0xdAC17F958D2ee523a2206206994597C13D831ec7", // ethereum
@@ -19,21 +18,39 @@ const USDT_CONTRACT_BY_CHAIN_ID = Object.freeze({
   8453: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2", // base
 });
 
+async function promptConfirmKey(expectedKey) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer = await rl.question("Enter confirm key to send ETH and USDT: ");
+    if (answer.trim() !== expectedKey) {
+      throw new Error("Confirm key mismatch. Aborting.");
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 function printUsageAndExit() {
-  console.error("Usage: node src/pay.js <recipientEvmAddress> [network]");
+  console.error("Usage: node src/distribute.js <recipientEvmAddress> [network]");
   console.error(
-    "Example: node src/pay.js 0x1111111111111111111111111111111111111111 polygon",
+    "Example: node src/distribute.js 0x1111111111111111111111111111111111111111 polygon",
   );
   process.exit(1);
 }
 
 // main()
 // - Receives an EVM recipient address from CLI.
-// - Sends a fixed native-coin amount for gas fee.
-// - Sends a fixed USDT amount on the selected EVM network.
+// - Sends native coin for gas (GAS_TOPUP_ETH env, default 0.02).
+// - Sends USDT (USDT_AMOUNT env, default 3).
+// - Requires typing PAY_CONFIRM_KEY on stdin before any send.
 async function main() {
   const recipientArg = process.argv[2];
   const networkName = (process.argv[3] || "polygon").trim();
+  const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.02";
+  const usdtAmount = process.env.USDT_AMOUNT?.trim() || "3";
 
   if (!recipientArg) {
     printUsageAndExit();
@@ -67,22 +84,31 @@ async function main() {
   console.log(`network: ${network.name} (${network.chainId})`);
   console.log(`from: ${wallet.address}`);
   console.log(`to: ${recipient}`);
+  console.log(`native top-up: ${gasTopupEth} (native)`);
+  console.log(`USDT transfer: ${usdtAmount}`);
 
-  const gasTopupWei = ethers.parseEther(GAS_TOPUP_ETH);
+  const confirmKey = process.env.PAY_CONFIRM_KEY?.trim();
+  if (!confirmKey) {
+    throw new Error("Missing PAY_CONFIRM_KEY environment variable.");
+  }
+  await promptConfirmKey(confirmKey);
+
+  const gasTopupWei = ethers.parseEther(gasTopupEth);
   const nativeTx = await wallet.sendTransaction({
     to: recipient,
     value: gasTopupWei,
   });
   await nativeTx.wait();
   console.log(`nativeTopupTx: ${nativeTx.hash}`);
-  console.log(`nativeTopupAmount: ${GAS_TOPUP_ETH}`);
+  console.log(`nativeTopupAmount: ${gasTopupEth}`);
 
   const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
-  const usdtAmountUnits = ethers.parseUnits(USDT_AMOUNT, USDT_DECIMALS);
+  const usdtAmountUnits = ethers.parseUnits(usdtAmount, USDT_DECIMALS);
   const usdtTx = await usdt.transfer(recipient, usdtAmountUnits);
   await usdtTx.wait();
+
   console.log(`usdtTx: ${usdtTx.hash}`);
-  console.log(`usdtAmount: ${USDT_AMOUNT}`);
+  console.log(`usdtAmount: ${usdtAmount}`);
 }
 
 main().catch((err) => {

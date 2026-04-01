@@ -12,6 +12,7 @@
   "description": "Generate a passphrase and PIN for temporary wallets on mybucks.online.",
   "dependencies": {
     "@mybucks.online/core": "^2.2.1",
+    "dotenv": "^17.3.1",
     "ethers": "^6.16.0"
   }
 }
