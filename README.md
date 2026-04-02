@@ -74,18 +74,24 @@ RPC URLs come from `src/conf/evm.js` and use **`INFURA_API_KEY`** where configur
 ### Usage
 
 ```bash
-node src/distribute.js <recipientEvmAddress> [network]
+node src/distribute.js [network]
 ```
 
-Default `network` is `polygon`. Supported names match `src/conf/evm.js` (e.g. `ethereum`, `polygon`, `arbitrum`, `optimism`, `bsc`, `avalanche`, `base`).
+`network` defaults to **`polygon`** if omitted (e.g. `node src/distribute.js` or `node src/distribute.js polygon`). Then an interactive loop prompts only for **`🟢 recipientAddress:`** each round. **Ctrl+C** or **Ctrl+D** (EOF) on that prompt exits.
+
+Supported network names match `src/conf/evm.js` (e.g. `ethereum`, `polygon`, `arbitrum`, `optimism`, `bsc`, `avalanche`, `base`).
 
 ### Behaviour
 
-1. Prints network, funder `from`, recipient `to`, and planned native / USDT amounts.
-2. Shows **Please confirm to distribute gas fee (native token) first.** then **Press any key to continue...** (TTY: any key; non-TTY: press Enter).
-3. Estimates gas for the native transfer (with a buffer), broadcasts it, waits for confirmation.
-4. Shows **Please confirm to distribute USDT next.** and waits again.
-5. Estimates gas for the USDT `transfer`, broadcasts it, waits for confirmation.
+1. Resolves the chain from the `[network]` argument once (RPC + funder wallet reused for every recipient).
+2. For each round, reads one recipient address from stdin.
+3. Prints network, funder `from`, recipient `to`, and planned native / USDT amounts.
+4. Shows **Please confirm to distribute gas fee (native token) first.** then **Press any key to continue...** (TTY: any key; non-TTY: press Enter).
+5. Estimates gas for the native transfer (with a buffer), broadcasts it, waits for confirmation.
+6. Shows **Please confirm to distribute USDT next.** and waits again.
+7. Estimates gas for the USDT `transfer`, broadcasts it, waits for confirmation.
+
+If a round fails (bad address, RPC error, etc.), the error is printed and the loop continues.
 
 Gas fees are taken from the RPC (Polygon does not use the public gas station URL that ethers would otherwise call for chain `137`).
 

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { ethers } from "ethers";
 import { createRequire } from "module";
+import * as readline from "node:readline/promises";
 import { generateHash, getEvmPrivateKey } from "@mybucks.online/core";
 import { EVM_NETWORKS, USDT_DECIMALS } from "./conf/evm.js";
 import { waitForAnyKey } from "./conf/lib.js";
@@ -29,43 +30,74 @@ const USDT_CONTRACT_BY_CHAIN_ID = Object.freeze({
   8453: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2", // base
 });
 
-function printUsageAndExit() {
-  console.error("Usage: node src/distribute.js <recipientEvmAddress> [network]");
-  console.error(
-    "Example: node src/distribute.js 0x1111111111111111111111111111111111111111 polygon",
+async function distributeOnce({
+  recipient,
+  network,
+  usdtAddress,
+  wallet,
+  provider,
+  gasTopupEth,
+  usdtAmount,
+}) {
+  const recipientAddr = ethers.getAddress(recipient.trim());
+
+  console.log(`network: ${network.name} (${network.chainId})`);
+  console.log(`from: ${wallet.address}`);
+  console.log(`to: ${recipientAddr}`);
+  console.log(`native top-up: ${gasTopupEth} (native)`);
+  console.log(`USDT transfer: ${usdtAmount}`);
+
+  await waitForAnyKey(
+    "Please confirm to distribute gas fee (native token) first.",
   );
-  process.exit(1);
+
+  const gasTopupWei = ethers.parseEther(gasTopupEth);
+  const nativeGasEst = await provider.estimateGas({
+    from: wallet.address,
+    to: recipientAddr,
+    value: gasTopupWei,
+  });
+  const nativeGasLimit = gasLimitWithBuffer(nativeGasEst);
+  console.log(`nativeGasEstimate: ${nativeGasEst} (limit ${nativeGasLimit} with buffer)`);
+
+  const nativeTx = await wallet.sendTransaction({
+    to: recipientAddr,
+    value: gasTopupWei,
+    gasLimit: nativeGasLimit,
+  });
+  await nativeTx.wait();
+  console.log(`nativeTopupTx: ${nativeTx.hash}`);
+  console.log(`nativeTopupAmount: ${gasTopupEth}`);
+
+  await waitForAnyKey("Please confirm to distribute USDT next.");
+
+  const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
+  const usdtAmountUnits = ethers.parseUnits(usdtAmount, USDT_DECIMALS);
+  const usdtGasEst = await usdt.transfer.estimateGas(recipientAddr, usdtAmountUnits, {
+    from: wallet.address,
+  });
+  const usdtGasLimit = gasLimitWithBuffer(usdtGasEst);
+  console.log(`usdtGasEstimate: ${usdtGasEst} (limit ${usdtGasLimit} with buffer)`);
+
+  const usdtTx = await usdt.transfer(recipientAddr, usdtAmountUnits, {
+    gasLimit: usdtGasLimit,
+  });
+  await usdtTx.wait();
+
+  console.log(`usdtTx: ${usdtTx.hash}`);
+  console.log(`usdtAmount: ${usdtAmount}`);
 }
 
 // main()
-// - Receives an EVM recipient address from CLI.
-// - Sends native coin for gas (GAS_TOPUP_ETH env, default 0.02).
-// - Sends USDT (USDT_AMOUNT env, default 3).
-// - Waits for a keypress (TTY) or Enter (non-TTY) before each send, after a
-//   caller-provided instruction line.
+// - Network from argv[2] (default polygon), validated once.
+// - Reads recipient address from stdin in a loop. Sends native top-up then USDT per round.
+// - GAS_TOPUP_ETH / USDT_AMOUNT from env. Ctrl+C or Ctrl+D (EOF) to exit.
 async function main() {
-  const recipientArg = process.argv[2];
-  const networkName = (process.argv[3] || "polygon").trim();
+  const networkName = (process.argv[2] ?? "").trim() || "polygon";
+
   const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.02";
   const usdtAmount = process.env.USDT_AMOUNT?.trim() || "3";
 
-  if (!recipientArg) {
-    printUsageAndExit();
-  }
-
-  const recipient = ethers.getAddress(recipientArg.trim());
-  const network = EVM_NETWORKS.find((item) => item.name === networkName);
-
-  if (!network) {
-    throw new Error(`Unsupported network: ${networkName}`);
-  }
-
-  const usdtAddress = USDT_CONTRACT_BY_CHAIN_ID[network.chainId];
-  if (!usdtAddress) {
-    throw new Error(`USDT contract is not configured for chainId ${network.chainId}`);
-  }
-
-  // generate funder wallet from passphrase and PIN
   const funderPassphrase = process.env.FUNDER_PASSPHRASE?.trim();
   const funderPin = process.env.FUNDER_PIN?.trim();
   if (!funderPassphrase || !funderPin) {
@@ -76,62 +108,65 @@ async function main() {
   const hash = await generateHash(funderPassphrase, funderPin);
   const privateKey = getEvmPrivateKey(hash);
 
+  const network = EVM_NETWORKS.find((item) => item.name === networkName);
+  if (!network) {
+    const known = EVM_NETWORKS.map((n) => n.name).join(", ");
+    throw new Error(`Unsupported network: ${networkName}. Use: ${known}`);
+  }
+
+  const usdtAddress = USDT_CONTRACT_BY_CHAIN_ID[network.chainId];
+  if (!usdtAddress) {
+    throw new Error(`USDT contract is not configured for chainId ${network.chainId}`);
+  }
+
   const provider = new ethers.JsonRpcProvider(network.provider, {
     name: network.name,
     chainId: network.chainId,
   });
   const wallet = new ethers.Wallet(privateKey, provider);
 
-  console.log(`network: ${network.name} (${network.chainId})`);
-  console.log(`from: ${wallet.address}`);
-  console.log(`to: ${recipient}`);
-  console.log(`native top-up: ${gasTopupEth} (native)`);
-  console.log(`USDT transfer: ${usdtAmount}`);
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  await waitForAnyKey(
-    "🟢 Please confirm to distribute gas fee (native token) first.",
+  console.log(
+    `Network: ${network.name} (${network.chainId}). Enter recipient addresses. Ctrl+C or Ctrl+D (EOF) to exit.\n`,
   );
 
-  // distribute gas fee (native token)
-  const gasTopupWei = ethers.parseEther(gasTopupEth);
-  const nativeGasEst = await provider.estimateGas({
-    from: wallet.address,
-    to: recipient,
-    value: gasTopupWei,
-  });
-  const nativeGasLimit = gasLimitWithBuffer(nativeGasEst);
-  console.log(`nativeGasEstimate: ${nativeGasEst} (limit ${nativeGasLimit} with buffer)`);
+  try {
+    for (;;) {
+      const recipientLine = await rl.question("🟢 recipientAddress: ");
+      if (recipientLine == null) {
+        break;
+      }
+      const recipient = recipientLine.trim();
+      if (!recipient) {
+        console.log("(empty — enter an address or EOF to exit)\n");
+        continue;
+      }
 
-  const nativeTx = await wallet.sendTransaction({
-    to: recipient,
-    value: gasTopupWei,
-    gasLimit: nativeGasLimit,
-  });
-  await nativeTx.wait();
-  console.log(`nativeTopupTx: ${nativeTx.hash}`);
-  console.log(`nativeTopupAmount: ${gasTopupEth}`);
-
-  await waitForAnyKey("🟢 Please confirm to distribute USDT next.");
-
-  // distribute USDT
-  const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
-  const usdtAmountUnits = ethers.parseUnits(usdtAmount, USDT_DECIMALS);
-  const usdtGasEst = await usdt.transfer.estimateGas(recipient, usdtAmountUnits, {
-    from: wallet.address,
-  });
-  const usdtGasLimit = gasLimitWithBuffer(usdtGasEst);
-  console.log(`usdtGasEstimate: ${usdtGasEst} (limit ${usdtGasLimit} with buffer)`);
-
-  const usdtTx = await usdt.transfer(recipient, usdtAmountUnits, {
-    gasLimit: usdtGasLimit,
-  });
-  await usdtTx.wait();
-
-  console.log(`usdtTx: ${usdtTx.hash}`);
-  console.log(`usdtAmount: ${usdtAmount}`);
+      try {
+        await distributeOnce({
+          recipient,
+          network,
+          usdtAddress,
+          wallet,
+          provider,
+          gasTopupEth,
+          usdtAmount,
+        });
+        console.log("");
+      } catch (err) {
+        console.error("Distribution failed:", err.message, "\n");
+      }
+    }
+  } finally {
+    rl.close();
+  }
 }
 
 main().catch((err) => {
-  console.error("Payment failed:", err.message);
+  console.error("Distribute failed:", err.message);
   process.exit(1);
 });
