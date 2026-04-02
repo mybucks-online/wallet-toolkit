@@ -89,7 +89,7 @@ async function main() {
   console.log(`USDT transfer: ${usdtAmount}`);
 
   await waitForAnyKey(
-    "Please confirm to distribute gas fee (native token) first.",
+    "🟢 Please confirm to distribute gas fee (native token) first.",
   );
 
   // distribute gas fee (native token)
@@ -111,7 +111,7 @@ async function main() {
   console.log(`nativeTopupTx: ${nativeTx.hash}`);
   console.log(`nativeTopupAmount: ${gasTopupEth}`);
 
-  await waitForAnyKey("Please confirm to distribute USDT next.");
+  await waitForAnyKey("🟢 Please confirm to distribute USDT next.");
 
   // distribute USDT
   const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
