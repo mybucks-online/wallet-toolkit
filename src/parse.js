@@ -1,16 +1,9 @@
+import * as readline from "node:readline/promises";
 import {
   parseToken,
   generateHash,
   getEvmWalletAddress,
 } from "@mybucks.online/core";
-
-function printUsageAndExit() {
-  console.error("Usage: node parse.js <transferLink>");
-  console.error(
-    "Example: node parse.js \"https://app.mybucks.online/#wallet=<token>\"",
-  );
-  process.exit(1);
-}
 
 function getWalletTokenFromTransferLink(transferLink) {
   let url;
@@ -31,22 +24,7 @@ function getWalletTokenFromTransferLink(transferLink) {
   return walletToken;
 }
 
-// main()
-// - Accepts a transfer link argument and trims surrounding whitespace.
-// - Extracts wallet token from the URL hash (#wallet=...).
-// - Decodes token fields (passphrase, pin, network, legacy) via parseToken.
-// - Re-generates the wallet hash and derives the EVM wallet address.
-// - Prints decoded values and derived outputs for verification/debugging.
-async function main() {
-  const transferLinkArg = process.argv[2];
-  if (!transferLinkArg) {
-    printUsageAndExit();
-  }
-  const transferLink = transferLinkArg.trim();
-  if (!transferLink) {
-    printUsageAndExit();
-  }
-
+async function parseAndPrintTransferLink(transferLink) {
   const walletToken = getWalletTokenFromTransferLink(transferLink);
   const [passphrase, pin, network, legacy] = parseToken(walletToken);
 
@@ -61,7 +39,45 @@ async function main() {
   console.log(`evmAddress: ${address}`);
 }
 
+// main()
+// - Reads transfer links from stdin in a loop (keyboard).
+// - Parses each link and prints passphrase, pin, network, legacy, hash, evmAddress.
+// - On error, prints the message and prompts again. Exit with Ctrl+C or Ctrl+D (EOF).
+async function main() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  console.log(
+    "Paste a transfer link per line. Ctrl+C or Ctrl+D (EOF) to exit.\n",
+  );
+
+  try {
+    for (;;) {
+      const line = await rl.question("🟢 transferLink: ");
+      if (line == null) {
+        break;
+      }
+      const transferLink = line.trim();
+      if (!transferLink) {
+        console.log("(empty line — enter a URL or EOF to exit)\n");
+        continue;
+      }
+
+      try {
+        await parseAndPrintTransferLink(transferLink);
+        console.log("");
+      } catch (err) {
+        console.error("Failed to parse transfer link:", err.message, "\n");
+      }
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 main().catch((err) => {
-  console.error("Failed to parse transfer link:", err.message);
+  console.error("Parse loop failed:", err.message);
   process.exit(1);
 });
