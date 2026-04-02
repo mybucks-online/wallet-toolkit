@@ -11,7 +11,9 @@ export async function waitForAnyKey(instruction) {
       process.stdin.resume();
       process.stdin.once("data", (buffer) => {
         process.stdin.setRawMode(false);
-        process.stdin.pause();
+        // Do not call stdin.pause(): readline shares the same stream; pausing
+        // makes the next rl.question() see EOF and exit the distribute loop.
+        process.stdin.resume();
         const key = buffer.toString();
         if (key === "\u0003") {
           process.stdout.write("\n");
