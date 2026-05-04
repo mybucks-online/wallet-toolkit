@@ -125,7 +125,7 @@ async function distributeOnce({
 async function main() {
   const networkName = (process.argv[2] ?? "").trim() || "polygon";
 
-  const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.02";
+  const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.03";
   const usdtAmount = process.env.USDT_AMOUNT?.trim() || "3";
 
   const funderPassphrase = process.env.FUNDER_PASSPHRASE?.trim();
