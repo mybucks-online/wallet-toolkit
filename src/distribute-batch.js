@@ -94,6 +94,11 @@ async function ensureUsdtAllowanceForMulticall(usdt, ownerAddress, need, spender
     return;
   }
 
+  // SECURITY WARNING:
+  // This script uses approve + later transferFrom through Multicall3. Between those
+  // two transactions, an attacker who can submit faster txs could try to consume the
+  // approved allowance to different destinations. Keep approvals tight and execute only
+  // from a trusted environment/network connection.
   // Single approve to the exact total this batch needs. If this reverts on older USDT
   // (non-zero allowance quirks), reset allowance off-chain or use a larger prior approve.
   const approveGas = await usdt.approve.estimateGas(spender, need);

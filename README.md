@@ -181,6 +181,11 @@ You need enough **native balance** for `GAS_TOPUP_ETH × N` plus gas for all tra
 
 Before the USDT multicall, the script checks **allowance** for Multicall3. If it is below `USDT_AMOUNT × N`, it sends a single **`approve(Multicall3, need)`** with that exact total (one extra transaction when needed). It does **not** send `approve(..., 0)` first; if `approve` reverts on a particular USDT (some older rules around changing allowance), fix allowance in a wallet UI or another tool, then rerun.
 
+> **Security warning:** batch mode uses an ERC20 **approve** transaction before the Multicall3
+> **transferFrom** batch. That creates a short window where the approved spender can be abused
+> (for example via front-running / ordering games) to pull funds to unintended destinations.
+> Use minimum required approvals, trusted infra, and monitor transactions closely.
+
 Token ABI is loaded from **`src/conf/erc20.json`** (`approve`, `allowance`, `transfer`, `transferFrom`).
 
 ### Usage
