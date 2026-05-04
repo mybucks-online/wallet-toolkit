@@ -20,6 +20,22 @@ function gasLimitWithBuffer(estimated) {
     GAS_ESTIMATE_BUFFER_DEN;
 }
 
+function isZeroNativeTopup(gasTopupEth) {
+  try {
+    return ethers.parseEther(String(gasTopupEth).trim()) === 0n;
+  } catch {
+    return false;
+  }
+}
+
+function isZeroUsdtAmount(usdtAmount) {
+  try {
+    return ethers.parseUnits(String(usdtAmount).trim(), USDT_DECIMALS) === 0n;
+  } catch {
+    return false;
+  }
+}
+
 const USDT_CONTRACT_BY_CHAIN_ID = Object.freeze({
   1: "0xdAC17F958D2ee523a2206206994597C13D831ec7", // ethereum
   137: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", // polygon
@@ -47,51 +63,65 @@ async function distributeOnce({
   console.log(`native top-up: ${gasTopupEth} (native)`);
   console.log(`USDT transfer: ${usdtAmount}`);
 
-  await waitForAnyKey(
-    "Please confirm to distribute gas fee (native token) first.",
-  );
+  const skipNative = isZeroNativeTopup(gasTopupEth);
+  const skipUsdt = isZeroUsdtAmount(usdtAmount);
 
-  const gasTopupWei = ethers.parseEther(gasTopupEth);
-  const nativeGasEst = await provider.estimateGas({
-    from: wallet.address,
-    to: recipientAddr,
-    value: gasTopupWei,
-  });
-  const nativeGasLimit = gasLimitWithBuffer(nativeGasEst);
-  console.log(`nativeGasEstimate: ${nativeGasEst} (limit ${nativeGasLimit} with buffer)`);
+  if (skipNative) {
+    console.log("native top-up skipped (amount is 0)");
+  } else {
+    await waitForAnyKey(
+      "Please confirm to distribute gas fee (native token) first.",
+    );
 
-  const nativeTx = await wallet.sendTransaction({
-    to: recipientAddr,
-    value: gasTopupWei,
-    gasLimit: nativeGasLimit,
-  });
-  await nativeTx.wait();
-  console.log(`nativeTopupTx: ${nativeTx.hash}`);
-  console.log(`nativeTopupAmount: ${gasTopupEth}`);
+    const gasTopupWei = ethers.parseEther(String(gasTopupEth).trim());
+    const nativeGasEst = await provider.estimateGas({
+      from: wallet.address,
+      to: recipientAddr,
+      value: gasTopupWei,
+    });
+    const nativeGasLimit = gasLimitWithBuffer(nativeGasEst);
+    console.log(`nativeGasEstimate: ${nativeGasEst} (limit ${nativeGasLimit} with buffer)`);
 
-  await waitForAnyKey("Please confirm to distribute USDT next.");
+    const nativeTx = await wallet.sendTransaction({
+      to: recipientAddr,
+      value: gasTopupWei,
+      gasLimit: nativeGasLimit,
+    });
+    await nativeTx.wait();
+    console.log(`nativeTopupTx: ${nativeTx.hash}`);
+    console.log(`nativeTopupAmount: ${gasTopupEth}`);
+  }
 
-  const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
-  const usdtAmountUnits = ethers.parseUnits(usdtAmount, USDT_DECIMALS);
-  const usdtGasEst = await usdt.transfer.estimateGas(recipientAddr, usdtAmountUnits, {
-    from: wallet.address,
-  });
-  const usdtGasLimit = gasLimitWithBuffer(usdtGasEst);
-  console.log(`usdtGasEstimate: ${usdtGasEst} (limit ${usdtGasLimit} with buffer)`);
+  if (skipUsdt) {
+    console.log("USDT transfer skipped (amount is 0)");
+  } else {
+    await waitForAnyKey("Please confirm to distribute USDT next.");
 
-  const usdtTx = await usdt.transfer(recipientAddr, usdtAmountUnits, {
-    gasLimit: usdtGasLimit,
-  });
-  await usdtTx.wait();
+    const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
+    const usdtAmountUnits = ethers.parseUnits(
+      String(usdtAmount).trim(),
+      USDT_DECIMALS,
+    );
+    const usdtGasEst = await usdt.transfer.estimateGas(recipientAddr, usdtAmountUnits, {
+      from: wallet.address,
+    });
+    const usdtGasLimit = gasLimitWithBuffer(usdtGasEst);
+    console.log(`usdtGasEstimate: ${usdtGasEst} (limit ${usdtGasLimit} with buffer)`);
 
-  console.log(`usdtTx: ${usdtTx.hash}`);
-  console.log(`usdtAmount: ${usdtAmount}`);
+    const usdtTx = await usdt.transfer(recipientAddr, usdtAmountUnits, {
+      gasLimit: usdtGasLimit,
+    });
+    await usdtTx.wait();
+
+    console.log(`usdtTx: ${usdtTx.hash}`);
+    console.log(`usdtAmount: ${usdtAmount}`);
+  }
 }
 
 // main()
 // - Network from argv[2] (default polygon), validated once.
 // - Reads recipient address from stdin in a loop. Sends native top-up then USDT per round.
-// - GAS_TOPUP_ETH / USDT_AMOUNT from env. Ctrl+C or Ctrl+D (EOF) to exit.
+// - GAS_TOPUP_ETH / USDT_AMOUNT from env (0 = skip that leg, no prompt/tx). Ctrl+C / EOF to exit.
 async function main() {
   const networkName = (process.argv[2] ?? "").trim() || "polygon";
 

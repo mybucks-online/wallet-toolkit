@@ -68,8 +68,8 @@ RPC URLs come from `src/conf/evm.js` and use **`INFURA_API_KEY`** where configur
 | `INFURA_API_KEY` | Yes (for Infura-backed chains) | Used in RPC URLs in `evm.js`. |
 | `FUNDER_PASSPHRASE` | Yes | Funder wallet passphrase. |
 | `FUNDER_PIN` | Yes | Funder wallet PIN. |
-| `GAS_TOPUP_ETH` | No | Native amount to send first (default `0.02`). |
-| `USDT_AMOUNT` | No | USDT amount to send (default `3`). |
+| `GAS_TOPUP_ETH` | No | Native amount to send first (default `0.02`). Use `0` to skip native top-up for each round. |
+| `USDT_AMOUNT` | No | USDT amount to send (default `3`). Use `0` to skip the USDT transfer. |
 
 ### Usage
 
