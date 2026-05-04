@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { createRequire } from "module";
 import { generateHash, getEvmPrivateKey } from "@mybucks.online/core";
 import { EVM_NETWORKS, USDT_DECIMALS } from "./conf/evm.js";
+import { waitForAnyKey } from "./conf/lib.js";
 
 const require = createRequire(import.meta.url);
 const erc20 = require("./conf/erc20.json");
@@ -187,6 +188,9 @@ async function main() {
   if (!skipNative) {
     const perWei = ethers.parseEther(String(gasTopupEth).trim());
     const totalWei = perWei * BigInt(recipients.length);
+    await waitForAnyKey(
+      `Please confirm native batch: send ${gasTopupEth} (native) to EACH of ${recipients.length} addresses in one Multicall3 transaction (total native value ${ethers.formatEther(totalWei)}).`,
+    );
     const valueCalls = recipients.map((addr) => ({
       target: addr,
       allowFailure: false,
@@ -219,8 +223,11 @@ async function main() {
   // --- Tx 2: USDT transferFrom funder -> each recipient in one aggregate3 ---
   if (!skipUsdt) {
     const perUsdt = ethers.parseUnits(String(usdtAmount).trim(), USDT_DECIMALS);
-    const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
     const need = perUsdt * BigInt(recipients.length);
+    await waitForAnyKey(
+      `Please confirm USDT batch: send ${usdtAmount} USDT to EACH of ${recipients.length} addresses (one Multicall3 tx; an approve tx runs first only if allowance is too low).`,
+    );
+    const usdt = new ethers.Contract(usdtAddress, erc20.abi, wallet);
     await ensureUsdtAllowanceForMulticall(usdt, wallet.address, need, MULTICALL3);
 
     const calls = recipients.map((addr) => ({

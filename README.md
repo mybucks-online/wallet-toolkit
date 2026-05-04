@@ -9,7 +9,7 @@
 | Generate wallets | `node src/index.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
 | Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
 | Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
-| Distribute (batch) | `node src/distribute-batch.js <wallets.csv> [network]` | Same amounts to many EVM addresses from an `index.js` CSV; Multicall3 (see below). |
+| Distribute (batch) | `node src/distribute-batch.js <wallets.csv> [network]` | Same amounts to many EVM addresses from an `index.js` CSV; Multicall3; keypress confirm before native and before USDT (see below). |
 
 All scripts that touch RPC or `.env` expect you to run them from the **project root** so `dotenv` and paths like `src/conf/…` resolve correctly.
 
@@ -194,6 +194,7 @@ First argument is the **CSV path** (required). Second argument is **`network`** 
 
 ### Behaviour summary
 
+- After printing the batch summary, **`waitForAnyKey`** (same helper as `distribute.js`) runs before the **native** multicall when native is not skipped, and again before the **USDT** path (approve + multicall) when USDT is not skipped: instruction line, then **Press any key to continue…** (TTY: any key; non-TTY: Enter).
 - Skips the native multicall if `GAS_TOPUP_ETH` parses to zero; skips the USDT multicall if `USDT_AMOUNT` parses to zero.
 - Estimates gas for each multicall and for any `approve` with a ~20% buffer.
 - Uses a static `{ name, chainId }` on `JsonRpcProvider` so Polygon does not depend on the public gas-station HTTP endpoint.
