@@ -27,6 +27,17 @@ kssUmm,0x263a79FC3EeF9D256a60AAB7f0E5954F6de0916F,polygon,-e42AYTCNRcjJ4LUtzWWxx
 npm install
 ```
 
+## Scripts overview
+
+| Script | Command | Purpose |
+|--------|---------|---------|
+| Generate wallets | `node src/index.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
+| Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
+| Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
+| Distribute (batch) | `node src/distribute-batch.js [network]` | Same amounts to many addresses; Multicall3 (see below). |
+
+All scripts that touch RPC or `.env` expect you to run them from the **project root** so `dotenv` and paths like `src/conf/…` resolve correctly.
+
 ## Usage
 
 ### Generate 1 wallet
@@ -55,11 +66,25 @@ node src/index.js 10 ethereum
 npm run generate -- 10 ethereum
 ```
 
+## Parse transfer link (`src/parse.js`)
+
+Decodes a **`#wallet=…`** URL from [mybucks.online](https://mybucks.online): reads the token with `parseToken`, recomputes the wallet hash and **EVM address**, and prints passphrase, PIN, network, legacy flag, hash, and address.
+
+### Usage
+
+```bash
+node src/parse.js
+```
+
+Runs an **infinite loop**: prompt **`🟢 transferLink:`**, paste a full URL, press Enter. Empty lines are ignored; **Ctrl+C** or **Ctrl+D** (EOF) exits. Errors print a message and the loop continues.
+
+No `.env` is required unless you add your own tooling.
+
 ## Distribute funds (`src/distribute.js`)
 
 Sends **native token** (for gas) and then **USDT** to a recipient address. The sender (“funder”) is the EVM wallet derived from `FUNDER_PASSPHRASE` and `FUNDER_PIN` via `@mybucks.online/core` (`generateHash`, `getEvmPrivateKey`), same idea as generated disposable wallets.
 
-RPC URLs come from `src/conf/evm.js` and use **`INFURA_API_KEY`** where configured. Load variables from a **`.env`** file in the project root (`dotenv` is applied when the script starts).
+RPC URLs come from `src/conf/evm.js` and use **`INFURA_API_KEY`** where configured. Load variables from a **`.env`** file in the project root (`dotenv` is applied when the script starts). The USDT contract uses the ABI in **`src/conf/erc20.json`**.
 
 ### Environment variables
 
@@ -68,8 +93,8 @@ RPC URLs come from `src/conf/evm.js` and use **`INFURA_API_KEY`** where configur
 | `INFURA_API_KEY` | Yes (for Infura-backed chains) | Used in RPC URLs in `evm.js`. |
 | `FUNDER_PASSPHRASE` | Yes | Funder wallet passphrase. |
 | `FUNDER_PIN` | Yes | Funder wallet PIN. |
-| `GAS_TOPUP_ETH` | No | Native amount to send first (default `0.02`). Use `0` to skip native top-up for each round. |
-| `USDT_AMOUNT` | No | USDT amount to send (default `3`). Use `0` to skip the USDT transfer. |
+| `GAS_TOPUP_ETH` | No | Native amount per recipient (default `0.03` if unset). Use `0` to skip the native leg each round. |
+| `USDT_AMOUNT` | No | USDT amount per recipient (default `3`). Use `0` to skip the USDT leg. |
 
 ### Usage
 
@@ -114,3 +139,52 @@ usdtGasEstimate: 67571 (limit 81086 with buffer)
 usdtTx: 0x66e75d5a8c4c51922e9919e88e6252ef4f7e918455a80633020b070bc03e2489
 usdtAmount: 3
 ```
+
+## Batch distribute (`src/distribute-batch.js`)
+
+Sends the **same native top-up** and the **same USDT amount** to **many addresses** in one run, using **[Multicall3](https://github.com/mds1/multicall)** (`0xcA11bde05977b3631167028862bE2a173976CA11` on the chains this repo targets):
+
+1. **One transaction** — `aggregate3Value`: native coin to each recipient (sub-calls with per-address `value`).
+2. **One transaction** — `aggregate3`: batched `USDT.transferFrom(funder, recipient, amount)` for each address.
+
+So you normally get **two on-chain transactions** for the transfers themselves. If Multicall3’s USDT allowance is below the batch total, the script sends **one** extra `approve(Multicall3, need)` first (exact `USDT_AMOUNT × N`).
+
+The funder wallet is the same as in `distribute.js` (`FUNDER_PASSPHRASE` / `FUNDER_PIN` → `generateHash` / `getEvmPrivateKey`). RPC and **`INFURA_API_KEY`** come from `src/conf/evm.js`. Load **`.env`** from the project root (`dotenv`).
+
+### Recipients
+
+Edit the **`RECIPIENTS`** array at the top of `src/distribute-batch.js` (EVM addresses as strings). Lines that are empty or start with `//` are ignored after trimming.
+
+### Environment variables
+
+Same as `distribute.js` for funder / Infura; amounts match the interactive script (defaults **`0.03`** native and **`3`** USDT per recipient if env vars are unset).
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `INFURA_API_KEY` | Yes (Infura-backed chains) | RPC in `evm.js`. |
+| `FUNDER_PASSPHRASE` | Yes | Funder passphrase. |
+| `FUNDER_PIN` | Yes | Funder PIN. |
+| `GAS_TOPUP_ETH` | No | Native **per recipient**. Use `0` to skip the native multicall. |
+| `USDT_AMOUNT` | No | USDT **per recipient**. Use `0` to skip the USDT multicall. |
+
+You need enough **native balance** for `GAS_TOPUP_ETH × N` plus gas for all transactions, and enough **USDT** for `USDT_AMOUNT × N`.
+
+### USDT allowance (automatic)
+
+Before the USDT multicall, the script checks **allowance** for Multicall3. If it is below `USDT_AMOUNT × N`, it sends a single **`approve(Multicall3, need)`** with that exact total (one extra transaction when needed). It does **not** send `approve(..., 0)` first; if `approve` reverts on a particular USDT (some older rules around changing allowance), fix allowance in a wallet UI or another tool, then rerun.
+
+Token ABI is loaded from **`src/conf/erc20.json`** (`approve`, `allowance`, `transfer`, `transferFrom`).
+
+### Usage
+
+```bash
+node src/distribute-batch.js [network]
+```
+
+`network` defaults to **`polygon`** if omitted. Supported names match `src/conf/evm.js` (same EVM set as distribute; no Tron).
+
+### Behaviour summary
+
+- Skips the native multicall if `GAS_TOPUP_ETH` parses to zero; skips the USDT multicall if `USDT_AMOUNT` parses to zero.
+- Estimates gas for each multicall and for any `approve` with a ~20% buffer.
+- Uses a static `{ name, chainId }` on `JsonRpcProvider` so Polygon does not depend on the public gas-station HTTP endpoint.

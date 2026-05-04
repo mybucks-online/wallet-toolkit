@@ -44,22 +44,13 @@ function gasLimitWithBuffer(estimated) {
 }
 
 async function ensureUsdtAllowanceForMulticall(usdt, ownerAddress, need, spender) {
-  let allowance = await usdt.allowance(ownerAddress, spender);
+  const allowance = await usdt.allowance(ownerAddress, spender);
   if (allowance >= need) {
     return;
   }
 
-  // USDT (Ethereum-style): cannot change allowance from non-zero to another non-zero without reset.
-  if (allowance > 0n) {
-    const resetGas = await usdt.approve.estimateGas(spender, 0);
-    const resetTx = await usdt.approve(spender, 0, {
-      gasLimit: gasLimitWithBuffer(resetGas),
-    });
-    console.log(`USDT approve(0) reset tx: ${resetTx.hash}`);
-    await resetTx.wait();
-    allowance = await usdt.allowance(ownerAddress, spender);
-  }
-
+  // Single approve to the exact total this batch needs. If this reverts on older USDT
+  // (non-zero allowance quirks), reset allowance off-chain or use a larger prior approve.
   const approveGas = await usdt.approve.estimateGas(spender, need);
   const approveTx = await usdt.approve(spender, need, {
     gasLimit: gasLimitWithBuffer(approveGas),
