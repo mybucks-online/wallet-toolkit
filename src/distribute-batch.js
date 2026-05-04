@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { readFile } from "node:fs/promises";
 import { ethers } from "ethers";
 import { createRequire } from "module";
 import { generateHash, getEvmPrivateKey } from "@mybucks.online/core";
@@ -28,19 +29,62 @@ const USDT_CONTRACT_BY_CHAIN_ID = Object.freeze({
   8453: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
 });
 
-// ---------------------------------------------------------------------------
-// Edit this list — EVM addresses (same native + USDT amount per address).
-// ---------------------------------------------------------------------------
-const RECIPIENTS = [
-  // "0x1111111111111111111111111111111111111111",
-  // "0x2222222222222222222222222222222222222222",
-];
-
 const GAS_BUFFER_NUM = 120n;
 const GAS_BUFFER_DEN = 100n;
 
 function gasLimitWithBuffer(estimated) {
   return (estimated * GAS_BUFFER_NUM + GAS_BUFFER_DEN - 1n) / GAS_BUFFER_DEN;
+}
+
+function printUsageAndExit() {
+  console.error("Usage: node src/distribute-batch.js <wallets.csv> [network]");
+  console.error(
+    "  wallets.csv — CSV from index.js (pin,address,network,walletToken,transferLink); EVM address is column 2.",
+  );
+  console.error("  Example: node src/index.js 10 polygon > wallets.csv");
+  console.error("           node src/distribute-batch.js wallets.csv polygon");
+  process.exit(1);
+}
+
+/**
+ * Parse wallet CSV as produced by src/index.js (comma-separated, no quoted fields).
+ * Uses the second column as the EVM recipient address. Skips the header row.
+ */
+function parseAddressesFromWalletCsv(content) {
+  const lines = content.split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) {
+      continue;
+    }
+    const lower = line.toLowerCase();
+    if (lower.startsWith("pin,") || lower.startsWith("pin,address,")) {
+      continue;
+    }
+    const parts = line.split(",");
+    if (parts.length < 2) {
+      continue;
+    }
+    const addrRaw = parts[1].trim();
+    try {
+      out.push(ethers.getAddress(addrRaw));
+    } catch {
+      console.warn(
+        `skip line ${i + 1}: not a valid EVM address — ${addrRaw.slice(0, 24)}…`,
+      );
+    }
+  }
+  const seen = new Set();
+  const deduped = [];
+  for (const a of out) {
+    const k = a.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      deduped.push(a);
+    }
+  }
+  return deduped;
 }
 
 async function ensureUsdtAllowanceForMulticall(usdt, ownerAddress, need, spender) {
@@ -61,29 +105,29 @@ async function ensureUsdtAllowanceForMulticall(usdt, ownerAddress, need, spender
   await approveTx.wait();
 }
 
-function normalizeRecipients(raw) {
-  const out = [];
-  for (const line of raw) {
-    const t = String(line).trim();
-    if (!t || t.startsWith("//")) {
-      continue;
-    }
-    out.push(ethers.getAddress(t));
-  }
-  return out;
-}
-
 async function main() {
-  const networkName = (process.argv[2] ?? "").trim() || "polygon";
-  const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.03";
-  const usdtAmount = process.env.USDT_AMOUNT?.trim() || "3";
+  const csvPath = (process.argv[2] ?? "").trim();
+  const networkName = (process.argv[3] ?? "").trim() || "polygon";
+  if (!csvPath) {
+    printUsageAndExit();
+  }
 
-  const recipients = normalizeRecipients(RECIPIENTS);
+  let fileContent;
+  try {
+    fileContent = await readFile(csvPath, "utf8");
+  } catch (err) {
+    throw new Error(`Cannot read CSV file: ${csvPath} (${err.message})`);
+  }
+
+  const recipients = parseAddressesFromWalletCsv(fileContent);
   if (recipients.length === 0) {
     throw new Error(
-      "No recipients: add addresses to the RECIPIENTS array in distribute-batch.js",
+      "No EVM addresses found in CSV (expected index.js format: pin,address,network,walletToken,transferLink).",
     );
   }
+
+  const gasTopupEth = process.env.GAS_TOPUP_ETH?.trim() || "0.03";
+  const usdtAmount = process.env.USDT_AMOUNT?.trim() || "3";
 
   const funderPassphrase = process.env.FUNDER_PASSPHRASE?.trim();
   const funderPin = process.env.FUNDER_PIN?.trim();
@@ -131,6 +175,7 @@ async function main() {
   const multicall = new ethers.Contract(MULTICALL3, MULTICALL3_ABI, wallet);
   const usdtIface = new ethers.Interface(erc20.abi);
 
+  console.log(`csv: ${csvPath}`);
   console.log(`network: ${network.name} (${network.chainId})`);
   console.log(`from: ${wallet.address}`);
   console.log(`recipients: ${recipients.length}`);

@@ -1,8 +1,27 @@
-# Generate wallet
+# generate-wallet
 
-Generates disposable crypto wallets for [mybucks.online](https://mybucks.online).
+## Summary
 
-Each wallet is output as a CSV line:
+**Scripts:** This repository contains **Node.js** scripts for [mybucks.online](https://mybucks.online) disposable wallets: **generate** CSV wallet rows, **parse** `#wallet=` transfer links into passphrase / PIN / network / address, and **distribute** native coin and **USDT** into those wallets (one recipient at a time, or many in one batch via **Multicall3**). RPC and token settings live under `src/conf/` (`evm.js`, `erc20.json`, …).
+
+| Script | Command | Purpose |
+|--------|---------|---------|
+| Generate wallets | `node src/index.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
+| Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
+| Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
+| Distribute (batch) | `node src/distribute-batch.js <wallets.csv> [network]` | Same amounts to many EVM addresses from an `index.js` CSV; Multicall3 (see below). |
+
+All scripts that touch RPC or `.env` expect you to run them from the **project root** so `dotenv` and paths like `src/conf/…` resolve correctly.
+
+## Install
+
+```bash
+npm install
+```
+
+## Generate wallets (`src/index.js`)
+
+Each generated wallet is one **CSV** line:
 
 ```
 pin,address,network,walletToken,transferLink
@@ -20,23 +39,6 @@ pin,address,network,walletToken,transferLink
 RAaxq6,0x1Ec17EbD74e80E9afB0b5CB7291d5a9c51b0b1F8,polygon,ncE9iqX2tXN1BPLT1TVnhQdi0xeDJPKjgtMXM9MnhSAlJBYXhxNgJldGhlcmV1bQ==CpGUYu,https://app.mybucks.online/#wallet=ncE9iqX2tXN1BPLT1TVnhQdi0xeDJPKjgtMXM9MnhSAlJBYXhxNgJldGhlcmV1bQ==CpGUYu
 kssUmm,0x263a79FC3EeF9D256a60AAB7f0E5954F6de0916F,polygon,-e42AYTCNRcjJ4LUtzWWxxdC1zSGZiSyMtUVF0dyRCAmtzc1VtbQJldGhlcmV1bQ==XbzB2U,https://app.mybucks.online/#wallet=-e42AYTCNRcjJ4LUtzWWxxdC1zSGZiSyMtUVF0dyRCAmtzc1VtbQJldGhlcmV1bQ==XbzB2U
 ```
-
-## Install
-
-```bash
-npm install
-```
-
-## Scripts overview
-
-| Script | Command | Purpose |
-|--------|---------|---------|
-| Generate wallets | `node src/index.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
-| Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
-| Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
-| Distribute (batch) | `node src/distribute-batch.js [network]` | Same amounts to many addresses; Multicall3 (see below). |
-
-All scripts that touch RPC or `.env` expect you to run them from the **project root** so `dotenv` and paths like `src/conf/…` resolve correctly.
 
 ## Usage
 
@@ -151,9 +153,15 @@ So you normally get **two on-chain transactions** for the transfers themselves. 
 
 The funder wallet is the same as in `distribute.js` (`FUNDER_PASSPHRASE` / `FUNDER_PIN` → `generateHash` / `getEvmPrivateKey`). RPC and **`INFURA_API_KEY`** come from `src/conf/evm.js`. Load **`.env`** from the project root (`dotenv`).
 
-### Recipients
+### Recipients (CSV)
 
-Edit the **`RECIPIENTS`** array at the top of `src/distribute-batch.js` (EVM addresses as strings). Lines that are empty or start with `//` are ignored after trimming.
+Pass a **CSV file path** as the first argument. The file should match **`src/index.js`** output:
+
+```csv
+pin,address,network,walletToken,transferLink
+```
+
+The script reads the **second column** (`address`) on each data row, checksums it with `ethers.getAddress`, and **dedupes** while preserving order. Rows that are not valid **EVM** addresses (e.g. Tron `T…` lines) are skipped with a warning. The header row is ignored.
 
 ### Environment variables
 
@@ -178,10 +186,11 @@ Token ABI is loaded from **`src/conf/erc20.json`** (`approve`, `allowance`, `tra
 ### Usage
 
 ```bash
-node src/distribute-batch.js [network]
+node src/index.js 10 polygon > wallets.csv
+node src/distribute-batch.js wallets.csv polygon
 ```
 
-`network` defaults to **`polygon`** if omitted. Supported names match `src/conf/evm.js` (same EVM set as distribute; no Tron).
+First argument is the **CSV path** (required). Second argument is **`network`** for RPC and USDT contract selection (default **`polygon`**). That chain must be an EVM network supported here (same list as `distribute.js`; **not** Tron), and the addresses in the CSV must be **0x** EVM recipients for that batch.
 
 ### Behaviour summary
 
