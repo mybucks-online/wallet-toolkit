@@ -9,6 +9,7 @@
 | Generate wallets | `node src/generate.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
 | Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
 | Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
+| Disperse input converter | `node src/disperse-input.js <wallets.csv> <amount>` | Converts wallet CSV into `address amount` rows for [disperse.app](https://disperse.app). |
 
 All scripts that touch RPC or `.env` expect you to run them from the **project root** so `dotenv` and paths like `src/conf/…` resolve correctly.
 
@@ -149,4 +150,38 @@ usdtGasEstimate: 67571 (limit 81086 with buffer)
 usdtTx: 0x66e75d5a8c4c51922e9919e88e6252ef4f7e918455a80633020b070bc03e2489
 usdtAmount: 3
 ```
+
+## Convert CSV for Disperse (`src/disperse-input.js`)
+
+Converts a generated wallet CSV (`pin,address,network,walletToken,transferLink`) into:
+
+```text
+address amount
+```
+
+This is the format accepted by [disperse.app](https://disperse.app).
+
+### Usage
+
+```bash
+node src/disperse-input.js <wallets.csv> <amount> [--no-dedupe]
+```
+
+### Example
+
+```bash
+node src/generate.js 10 polygon > wallets.csv
+node src/disperse-input.js wallets.csv 0.01 > disperse.txt
+```
+
+`disperse.txt` will contain one line per wallet like:
+
+```text
+0xAbc...123 0.01
+0xDef...456 0.01
+```
+
+Notes:
+- By default, duplicate addresses are removed (first occurrence kept).
+- Use `--no-dedupe` to keep duplicates as-is.
 
