@@ -6,7 +6,7 @@
 
 | Script | Command | Purpose |
 |--------|---------|---------|
-| Generate wallets | `node src/index.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
+| Generate wallets | `node src/generate.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
 | Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
 | Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
 
@@ -18,7 +18,7 @@ All scripts that touch RPC or `.env` expect you to run them from the **project r
 npm install
 ```
 
-## Generate wallets (`src/index.js`)
+## Generate wallets (`src/generate.js`)
 
 Each generated wallet is one **CSV** line:
 
@@ -41,10 +41,10 @@ kssUmm,0x263a79FC3EeF9D256a60AAB7f0E5954F6de0916F,polygon,-e42AYTCNRcjJ4LUtzWWxx
 
 ## Usage
 
-`src/index.js` argument format:
+`src/generate.js` argument format:
 
 ```bash
-node src/index.js [count] [network]
+node src/generate.js [count] [network]
 ```
 
 - `count` is optional (default `1`)
@@ -53,7 +53,7 @@ node src/index.js [count] [network]
 ### Generate 1 wallet
 
 ```bash
-node src/index.js
+node src/generate.js
 # or
 npm run generate
 ```
@@ -61,7 +61,7 @@ npm run generate
 ### Generate multiple wallets
 
 ```bash
-node src/index.js 10
+node src/generate.js 10
 # or
 npm run generate -- 10
 ```
@@ -71,7 +71,7 @@ npm run generate -- 10
 Supported networks: `ethereum`, `polygon`, `arbitrum`, `optimism`, `bsc`, `avalanche`, `base`, `tron`
 
 ```bash
-node src/index.js 10 ethereum
+node src/generate.js 10 ethereum
 # or
 npm run generate -- 10 ethereum
 ```
