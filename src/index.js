@@ -17,6 +17,9 @@ import {
 // CSV parsing in tools like Google Sheets. To avoid that, the CSV output
 // intentionally omits the raw passphrase; it can always be recovered later
 // from the wallet token if needed.
+// Args:
+//   process.argv[2] => count (optional, default 1)
+//   process.argv[3] => network (optional, default "polygon")
 async function main() {
   const count = parseInt(process.argv[2]) || 1;
   const network = process.argv[3] || "polygon";
