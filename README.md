@@ -1,11 +1,12 @@
-# generate-wallet
+# wallet-toolkit
 
 ## Summary
 
-**Scripts:** This repository contains **Node.js** scripts for [mybucks.online](https://mybucks.online) disposable wallets: **generate** CSV wallet rows, **parse** `#wallet=` transfer links into passphrase / PIN / network / address, and **distribute** native coin and **USDT** into those wallets (one recipient at a time). RPC and token settings live under `src/conf/` (`evm.js`, `erc20.json`, …).
+**Scripts:** This repository contains **Node.js** scripts for [mybucks.online](https://mybucks.online) disposable wallets: **generate** CSV wallet rows, **parse** `#wallet=` gifting links into passphrase / PIN / network / address, and **distribute** native coin and **USDT** into those wallets (one recipient at a time). RPC and token settings live under `src/conf/` (`evm.js`, `erc20.json`, …).
 
 | Script | Command | Purpose |
 |--------|---------|---------|
+| Toolkit help menu | `node index.js` / `npm run help` | Prints a quick overview of all available scripts with examples. |
 | Generate wallets | `node src/generate.js` … | CSV rows with pin, address, token, link (no passphrase in CSV). |
 | Parse transfer link | `node src/parse.js` | Interactive: paste `#wallet=…` links, print decoded fields + EVM address. |
 | Distribute (one at a time) | `node src/distribute.js [network]` | Interactive: native top-up + USDT per recipient address. |
@@ -17,6 +18,16 @@ All scripts that touch RPC or `.env` expect you to run them from the **project r
 
 ```bash
 npm install
+```
+
+## Toolkit help (`index.js`)
+
+Print a brief CLI overview with examples:
+
+```bash
+node index.js
+# or
+npm run help
 ```
 
 ## Generate wallets (`src/generate.js`)
@@ -150,6 +161,11 @@ usdtGasEstimate: 67571 (limit 81086 with buffer)
 usdtTx: 0x66e75d5a8c4c51922e9919e88e6252ef4f7e918455a80633020b070bc03e2489
 usdtAmount: 3
 ```
+
+## Batch distribution
+
+For batch distribution of ETH and USDT to multiple addresses, this toolkit currently recommends [disperse.app](https://disperse.app).
+Disperse.app expects rows in `address amount` format, so this toolkit provides `src/disperse-input.js` to convert generated wallet CSV files into compatible rows.
 
 ## Convert CSV for Disperse (`src/disperse-input.js`)
 
