@@ -2,7 +2,13 @@
 
 ## Summary
 
-**Scripts:** This repository contains **Node.js** scripts for [mybucks.online](https://mybucks.online) disposable wallets: **generate** CSV wallet rows, **parse** `#wallet=` gifting links into passphrase / PIN / network / address, and **distribute** native coin and **USDT** into those wallets (one recipient at a time). RPC and token settings live under `src/conf/` (`evm.js`, `erc20.json`, …).
+**Scripts:** This repository contains **Node.js** scripts for [mybucks.online](https://mybucks.online) disposable wallets:
+
+- **Generate** CSV wallet rows.
+- **Parse** `#wallet=` gifting links into passphrase / PIN / network / address.
+- **Distribute** native coin and **USDT** into those wallets (one recipient at a time).
+- **Prepare batch distribution input** with `src/disperse-input.js` (`address amount` rows for disperse.app).
+- RPC and token settings live under `src/conf/` (`evm.js`, `erc20.json`, ...).
 
 | Script | Command | Purpose |
 |--------|---------|---------|
