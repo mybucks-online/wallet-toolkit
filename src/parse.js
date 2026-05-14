@@ -18,7 +18,9 @@ function getWalletTokenFromTransferLink(transferLink) {
   const walletToken = hashParams.get("wallet");
 
   if (!walletToken) {
-    throw new Error("Missing wallet token in URL hash. Expected #wallet=<token>.");
+    throw new Error(
+      "Missing wallet token in URL hash. Expected #wallet=<token>.",
+    );
   }
 
   return walletToken;
@@ -26,7 +28,7 @@ function getWalletTokenFromTransferLink(transferLink) {
 
 async function parseAndPrintTransferLink(transferLink) {
   const walletToken = getWalletTokenFromTransferLink(transferLink);
-  const [passphrase, pin, network, legacy] = parseToken(walletToken);
+  const { passphrase, pin, network, legacy } = parseToken(walletToken);
 
   const hash = await generateHash(passphrase, pin, null, legacy);
   const address = getEvmWalletAddress(hash);
